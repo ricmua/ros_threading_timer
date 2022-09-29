@@ -219,3 +219,5 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 [threading.Thread]: https://docs.python.org/3/library/threading.html#threading.Thread
 
+[neuromechatronics]: https://www.meche.engineering.cmu.edu/faculty/neuromechatronics-lab.html
+
