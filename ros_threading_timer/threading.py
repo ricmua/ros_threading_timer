@@ -238,6 +238,7 @@ class TimerWrapper(one_shot.TimerWrapper):
         
         # Join by spinning.
         # Terminate the loop if the timer expires, or if the timeout expires.
+        timeout = 1e9 if (timeout == None) else timeout
         while (timeout > 0) and self.is_alive():
             rclpy.spin_once(self._node, timeout_sec=timeout)
             elapsed_ns = (clock.now() - time_0).nanoseconds
