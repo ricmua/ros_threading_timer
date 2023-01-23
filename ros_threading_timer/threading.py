@@ -24,6 +24,7 @@ Create a ROS2 node and retrieve a ROS2 timer.
 >>> node = rclpy.node.Node('test')
 >>> ros_timer = node.create_timer(timer_period_sec=timer_period_s, 
 ...                               callback=lambda: print('Timeout'))
+>>> ros_timer.cancel()
 
 Wrap the ROS2 timer with a threading-style timer class.
 
@@ -46,6 +47,12 @@ True
 Threading-style timeout
 >>> timer.is_alive()
 False
+
+Verify that the timer interval is of the expected duration.
+
+>>> elapsed_ns = timer._elapsed_ns
+>>> abs(elapsed_ns / 1e9 - timer_period_s) < tolerance_s
+True
 
 Verify that the timer cannot be started a second time.
 
@@ -75,25 +82,6 @@ False
 ... except RuntimeError as e: print(e)
 Timer has already been started.
 
-Verify that the timer interval is of the expected duration.
-
->>> class TimingTimerWrapper(TimerWrapper):
-...     def start(self):
-...         self._start_time = self._node.get_clock().now()
-...         super().start()
-...     def _callback_wrapper(self, *args, **kwargs):
-...         self._callback_time = self._node.get_clock().now()
-...         super()._callback_wrapper(*args, **kwargs)
->>> TimingTimer = TimingTimerWrapper(ros_timer,  node=node)
->>> timer = TimingTimer(function=lambda: print('Timed timeout'),
-...                     interval=timer_period_s)
->>> timer.start()
->>> timer.join(timeout=timer_period_s + tolerance_s)
-Timed timeout
->>> elapsed_ns = (timer._callback_time - timer._start_time).nanoseconds
->>> abs(elapsed_ns / 1e9 - timer_period_s) < tolerance_s
-True
-
 Cleanup by destroying the node and shutting down the ROS2 interface.
 
 >>> node.destroy_node()
@@ -121,7 +109,7 @@ References
 
 """
 
-# Copyright 2022 Carnegie Mellon University Neuromechatronics Lab (a.whit)
+# Copyright 2022-2023 Carnegie Mellon University Neuromechatronics Lab (a.whit)
 # 
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -131,6 +119,7 @@ References
 
 
 # Import ROS2 packages and modules.
+import rclpy.task
 import rclpy.utilities
 
 # Import local modules.
@@ -155,6 +144,10 @@ class TimerWrapper(one_shot.TimerWrapper):
     def __init__(self, *args, node=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._node = node
+        self._future = None
+        self._time_0 = None
+        self._time_T = None
+        self._callback = None
         
     def __call__(self, interval, function, args=None, kwargs=None):
         """ A [callable] entry point that overrides 
@@ -172,7 +165,8 @@ class TimerWrapper(one_shot.TimerWrapper):
         # Set the initial state.
         self._started = False
         self._alive = False
-        
+        self._future = rclpy.task.Future()
+
         # Initialize defaults.
         args = args if not (args == None) else []
         kwargs = kwargs if not (kwargs == None) else {}
@@ -200,6 +194,9 @@ class TimerWrapper(one_shot.TimerWrapper):
         # If the thread has already started, raise an exception.
         if self._started: raise RuntimeError('Timer has already been started.')
         
+        # Record the start time.
+        self._time_0 = self._node.get_clock().now()
+        
         # Start the timer.
         self._started = True
         self.run()
@@ -219,7 +216,7 @@ class TimerWrapper(one_shot.TimerWrapper):
         
         Arguments
         ---------
-        timeout : float
+        timeout_s : float
             Timeout for the blocking operation, in seconds.
         """
         
@@ -228,22 +225,15 @@ class TimerWrapper(one_shot.TimerWrapper):
             raise RuntimeError('Cannot join timer that has not been started.')
         
         # Ensure that the timer is alive.
-        if not self._alive and not timeout:
+        if not self._alive and not timeout_s:
             message = 'Cannot join timer that is not alive without a timeout'
             raise RuntimeError(message)
         
-        # Record the start time.
-        clock = self._node.get_clock()
-        time_0 = clock.now()
-        
         # Join by spinning.
         # Terminate the loop if the timer expires, or if the timeout expires.
-        timeout = 1e9 if (timeout == None) else timeout
-        while (timeout > 0) and self.is_alive():
-            rclpy.spin_once(self._node, timeout_sec=timeout)
-            elapsed_ns = (clock.now() - time_0).nanoseconds
-            elapsed_s = elapsed_ns / 1e9
-            timeout  -= elapsed_s
+        rclpy.spin_until_future_complete(node=self._node, 
+                                         future=self._future, 
+                                         timeout_sec=timeout)
         
         # Always return None.
         return None
@@ -253,6 +243,7 @@ class TimerWrapper(one_shot.TimerWrapper):
         
         See the [threading.Thread].is_alive method.
         """
+        is_alive = self._alive if not self._future else not self._future.done()
         return self._alive
         
     # property name
@@ -271,9 +262,20 @@ class TimerWrapper(one_shot.TimerWrapper):
     def _callback_wrapper(self, *args, **kwargs):
         """ Overrides the callback wrapper for the parent class in order to 
             update timer status.
-        """
+            
+        Record the time elapsed and set the alive state. """
+        self._time_T = self._node.get_clock().now()
+        self._elapsed_ns = (self._time_T - self._time_0).nanoseconds
+        self._future.set_result(self._elapsed_ns)
         super()._callback_wrapper(*args, **kwargs)
         self._alive = False 
+    
+  
+
+# Main: Run doctests.
+if __name__ == '__main__':
+    import doctest
+    doctest.testmod()
     
   
 

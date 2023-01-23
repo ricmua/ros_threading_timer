@@ -6,7 +6,7 @@ date: September 2022
 
 <!-- License
 
-Copyright 2022 Neuromechatronics Lab, Carnegie Mellon University (a.whit)
+Copyright 2022-2023 Neuromechatronics Lab, Carnegie Mellon University (a.whit)
 
 Created by: a. whit. (nml@whit.contact)
 
@@ -28,6 +28,22 @@ and timers.
 
 This package should generally be checked-out and built as part of a 
 [ROS2 workspace][ros2_workspace].
+
+### Testing
+
+The [doctest]s in this document can be used to quickly verify a successful 
+installation. All tests should be invoked from within a 
+[configured ROS2 environment].
+
+```bash
+python -m doctest path/to/ros_threading_timer/README.md
+```
+
+For more formalized unit testing, use the provided [pytest]s.
+
+```bash
+python -m pytest path/to/ros_threading_timer/test/test_ros_threading_timer.py
+```
 
 ## Example
 
@@ -172,7 +188,7 @@ documentation.
 
 ## License
 
-Copyright 2022 [Neuromechatronics Lab][neuromechatronics], 
+Copyright 2022-2023 [Neuromechatronics Lab][neuromechatronics], 
 Carnegie Mellon University
 
 Created by: a. whit. (nml@whit.contact)
@@ -220,4 +236,9 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 [threading.Thread]: https://docs.python.org/3/library/threading.html#threading.Thread
 
 [neuromechatronics]: https://www.meche.engineering.cmu.edu/faculty/neuromechatronics-lab.html
+
+[configured ROS2 environment]: https://docs.ros.org/en/humble/Tutorials/Beginner-CLI-Tools/Configuring-ROS2-Environment.html
+
+[pytest]: https://docs.pytest.org/
+
 
